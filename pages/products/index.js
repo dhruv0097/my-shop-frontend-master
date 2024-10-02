@@ -5,39 +5,32 @@ import Link from "next/link";
 import { useContext, useEffect, useState } from "react";
 import Spinner from "../components/Spinner";
 import toast from "react-hot-toast";
+import debounce from 'lodash.debounce'; // Use lodash debounce
 
 // Utility function to format price with a comma for thousands
-const formatPrice = (price) => {
-  return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-};
+const formatPrice = (price) => price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
 export default function Products({ allProducts }) {
   const { addProduct } = useContext(CartContext);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Remove artificial loading
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredProducts, setFilteredProducts] = useState(allProducts);
 
-  useEffect(() => {
-    setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-  }, []);
-
-  const filterProducts = () => {
-    if (searchQuery === "") {
-      setFilteredProducts(allProducts);
-    } else {
-      const lowerCaseQuery = searchQuery.toLowerCase();
-      const filtered = allProducts.filter((product) =>
-        product.title.toLowerCase().includes(lowerCaseQuery)
-      );
-      setFilteredProducts(filtered);
-    }
-  };
+  // Debounced search handler for optimized filtering
+  const handleSearch = debounce((query) => {
+    const lowerCaseQuery = query.toLowerCase();
+    const filtered = allProducts.filter((product) =>
+      product.title.toLowerCase().includes(lowerCaseQuery)
+    );
+    setFilteredProducts(filtered);
+  }, 300); // 300ms debounce
 
   useEffect(() => {
-    filterProducts();
+    handleSearch(searchQuery);
+    return () => {
+      handleSearch.cancel();
+    };
   }, [searchQuery]);
 
   return (
@@ -53,10 +46,10 @@ export default function Products({ allProducts }) {
             placeholder="Search products"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="mb-4 px-4 py-2 rounded-lg border border-gray-300 w-full" // Increased the input size
+            className="mb-4 px-4 py-2 rounded-lg border border-gray-300 w-full"
           />
 
-          {filteredProducts.length === 0 ? ( // Display a message when no matching searches
+          {filteredProducts.length === 0 ? (
             <p className="text-center text-gray-600">
               No matching products found.
             </p>
@@ -65,43 +58,43 @@ export default function Products({ allProducts }) {
               {filteredProducts.map((product) => (
                 <div key={product._id}>
                   <div className="group block overflow-hidden border border-accent rounded-xl border-opacity-10">
-                    <div className="">
-                      <div className="relative md:h-[300px] h-[200px]">
-                        <img
-                          src={product.images[0]}
-                          alt=""
-                          className="absolute inset-0 h-full w-full object-contain opacity-100 group-hover:opacity-0"
-                        />
-                        <img
-                          src={product.images[1]}
-                          alt=""
-                          className="absolute inset-0 h-full w-full object-contain opacity-0 group-hover:opacity-100"
-                        />
-                      </div>
+                    <div className="relative md:h-[300px] h-[200px]">
+                      <img
+                        src={product.images[0]}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-contain opacity-100 group-hover:opacity-0"
+                        loading="lazy" // Lazy load images
+                      />
+                      <img
+                        src={product.images[1]}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-contain opacity-0 group-hover:opacity-100"
+                        loading="lazy" // Lazy load images
+                      />
+                    </div>
 
-                      <div className="relative p-3 border-t">
-                        <Link href={"/products/" + product._id}>
-                          <h3 className="text-md text-gray-700 group-hover:underline group-hover:underline-offset-4 truncate">
-                            {product.title}
-                          </h3>
-                        </Link>
+                    <div className="relative p-3 border-t">
+                      <Link href={`/products/${product._id}`}>
+                        <h3 className="text-md text-gray-700 group-hover:underline group-hover:underline-offset-4 truncate">
+                          {product.title}
+                        </h3>
+                      </Link>
 
-                        <div className="mt-1.5 flex flex-col items-center justify-between text-text">
-                          <p className="tracking-wide text-primary text-sm md:text-md">
-                            ₹ {formatPrice(product.price)}
-                          </p>
+                      <div className="mt-1.5 flex flex-col items-center justify-between text-text">
+                        <p className="tracking-wide text-primary text-sm md:text-md">
+                          ₹ {formatPrice(product.price)}
+                        </p>
 
-                          <div className="col-span-12 text-center w-full mt-3">
-                            <button
-                              onClick={() => {
-                                addProduct(product._id);
-                                toast.success("Item added to cart!");
-                              }}
-                              className="disabled block rounded bg-secondary px-5 py-3 text-md text-text w-full transition hover:bg-purple-300"
-                            >
-                              Add to cart
-                            </button>
-                          </div>
+                        <div className="col-span-12 text-center w-full mt-3">
+                          <button
+                            onClick={() => {
+                              addProduct(product._id);
+                              toast.success("Item added to cart!");
+                            }}
+                            className="block rounded bg-secondary px-5 py-3 text-md text-text w-full transition hover:bg-purple-300"
+                          >
+                            Add to cart
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -118,7 +111,9 @@ export default function Products({ allProducts }) {
 
 export async function getServerSideProps() {
   await mongooseConnect();
-  const allProducts = await Product.find({}, null, { sort: { _id: 1 } });
+
+  // Limit products to optimize initial load
+  const allProducts = await Product.find({}, null, { sort: { _id: 1 }, limit: 20 }).lean(); // limit to 20 products for performance
 
   return {
     props: {

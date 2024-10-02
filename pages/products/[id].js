@@ -92,8 +92,10 @@ export default function ProductPage({ product }) {
             <div className="w-full">
               <button
                 className="bg-primary text-white py-2 px-4 mt-4 rounded-md hover:bg-primary-dark w-full"
-                onClick={() => {addProduct(product._id);
-                  toast.success('Item added to cart!!')}}
+                onClick={() => {
+                  addProduct(product._id);
+                  toast.success('Item added to cart!!')
+                }}
               >
                 Add to Cart
               </button>
