@@ -21,24 +21,38 @@ export default function Home({ featuredProduct, newProducts, collectionProduct1 
 }
 
 export async function getServerSideProps() {
-  await mongooseConnect();
+  // Optimize MongoDB connection
+  try {
+    await mongooseConnect();
 
-  // Fetch only required data to optimize load time
-  const featuredId = '66fc4fca878b68201c95a8ae';
-  const collectionId = '66fc50d6878b68201c95a8bb';
+    // Optimize database queries by reducing unnecessary data fetching
+    const featuredId = '66fc4fca878b68201c95a8ae';
+    const collectionId = '66fc50d6878b68201c95a8bb';
 
-  // Optimize database queries by reducing unnecessary data fetching
-  const featuredProduct = await Product.findById(featuredId).lean();
-  const collectionProduct1 = await Product.findById(collectionId).lean();
+    // Use lean() for faster data retrieval and JSON serialization
+    const [featuredProduct, collectionProduct1, newProducts] = await Promise.all([
+      Product.findById(featuredId).lean(),
+      Product.findById(collectionId).lean(),
+      Product.find({}, null, { sort: { _id: 1 }, limit: 5 }).lean(),
+    ]);
 
-  // Limit newProducts to only what is necessary, use lean() for performance
-  const newProducts = await Product.find({}, null, { sort: { '_id': 1 }, limit: 5 }).lean();
+    return {
+      props: {
+        featuredProduct: JSON.parse(JSON.stringify(featuredProduct)),
+        collectionProduct1: JSON.parse(JSON.stringify(collectionProduct1)),
+        newProducts: JSON.parse(JSON.stringify(newProducts)),
+      },
+    };
+  } catch (error) {
+    console.error("Error in getServerSideProps:", error);
 
-  return {
-    props: {
-      featuredProduct: JSON.parse(JSON.stringify(featuredProduct)),
-      collectionProduct1: JSON.parse(JSON.stringify(collectionProduct1)),
-      newProducts: JSON.parse(JSON.stringify(newProducts)),
-    },
-  };
+    // Handle errors gracefully
+    return {
+      props: {
+        featuredProduct: null,
+        collectionProduct1: null,
+        newProducts: [],
+      },
+    };
+  }
 }
